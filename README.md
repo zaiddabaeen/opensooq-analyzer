@@ -2,6 +2,8 @@
 
 A full-stack application to analyze pricing data on OpenSooq listings.
 
+![OpenSooq Listings Analyzer Screenshot](./assets/preview.png)
+
 ## Features
 
 - Input an OpenSooq search URL to fetch listings
@@ -29,7 +31,7 @@ The backend API will run on http://localhost:3001
 
 1. Go to OpenSooq and search for items with your desired criteria
 2. Copy the search URL (e.g., `https://jo.opensooq.com/en/cars/cars-for-sale/jeep/wrangler`)
-3. Paste the URL in the input field and click "Scrape"
+3. Paste the URL in the input field and click "Analyze"
 4. Wait for the scraping to complete
 5. View the price statistics and use filters to analyze the data
 
