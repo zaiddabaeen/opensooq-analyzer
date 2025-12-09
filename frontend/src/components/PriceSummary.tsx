@@ -6,6 +6,7 @@ interface PriceSummaryProps {
   avgPrice: number | null;
   totalItems: number;
   filteredCount: number;
+  excludedCount: number;
 }
 
 export const PriceSummary: React.FC<PriceSummaryProps> = ({
@@ -14,6 +15,7 @@ export const PriceSummary: React.FC<PriceSummaryProps> = ({
   avgPrice,
   totalItems,
   filteredCount,
+  excludedCount,
 }) => {
   const formatPrice = (price: number | null) => {
     if (price === null) return 'N/A';
@@ -35,10 +37,12 @@ export const PriceSummary: React.FC<PriceSummaryProps> = ({
         <div className="value">{formatPrice(maxPrice)}</div>
       </div>
       <div className="price-card total">
-        <h3>Items</h3>
+        <h3>Included Items</h3>
         <div className="value">{filteredCount} / {totalItems}</div>
+        {excludedCount > 0 && (
+          <div className="excluded-info">{excludedCount} excluded</div>
+        )}
       </div>
     </div>
   );
 };
-

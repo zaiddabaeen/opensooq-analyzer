@@ -1,8 +1,41 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { ScrapeResult } from './types';
+import { ScrapeResult, ScrapedItem } from './types';
 import { PriceSummary } from './components/PriceSummary';
 import { Filters } from './components/Filters';
 import { DataTable } from './components/DataTable';
+
+// Detect outliers using IQR method
+function detectOutliers(items: ScrapedItem[]): Set<string> {
+  const prices = items
+    .filter(item => item.price !== null && item.price > 0)
+    .map(item => ({ link: item.link, price: item.price as number }));
+
+  if (prices.length < 4) return new Set();
+
+  // Sort prices
+  const sortedPrices = prices.map(p => p.price).sort((a, b) => a - b);
+
+  // Calculate Q1, Q3, and IQR
+  const q1Index = Math.floor(sortedPrices.length * 0.25);
+  const q3Index = Math.floor(sortedPrices.length * 0.75);
+  const q1 = sortedPrices[q1Index];
+  const q3 = sortedPrices[q3Index];
+  const iqr = q3 - q1;
+
+  // Define outlier bounds (1.5 * IQR is standard, using 2.0 for less aggressive filtering)
+  const lowerBound = q1 - 2.0 * iqr;
+  const upperBound = q3 + 2.0 * iqr;
+
+  // Find outliers
+  const outliers = new Set<string>();
+  prices.forEach(({ link, price }) => {
+    if (price < lowerBound || price > upperBound) {
+      outliers.add(link);
+    }
+  });
+
+  return outliers;
+}
 
 function App() {
   const [url, setUrl] = useState('');
@@ -10,6 +43,8 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ScrapeResult | null>(null);
   const [filters, setFilters] = useState<Record<string, string[]>>({});
+  const [excludedItems, setExcludedItems] = useState<Set<string>>(new Set());
+  const [autoExcludeOutliers, setAutoExcludeOutliers] = useState(true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,6 +52,7 @@ function App() {
     setError(null);
     setData(null);
     setFilters({});
+    setExcludedItems(new Set());
 
     try {
       const response = await fetch('/api/scrape', {
@@ -55,6 +91,24 @@ function App() {
   const handleClearFilters = () => {
     setFilters({});
   };
+
+  const handleToggleExclude = useCallback((link: string) => {
+    setExcludedItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(link)) {
+        newSet.delete(link);
+      } else {
+        newSet.add(link);
+      }
+      return newSet;
+    });
+  }, []);
+
+  // Detect outliers from all items
+  const detectedOutliers = useMemo(() => {
+    if (!data || !autoExcludeOutliers) return new Set<string>();
+    return detectOutliers(data.items);
+  }, [data, autoExcludeOutliers]);
 
   // Apply filters to items
   const filteredItems = useMemo(() => {
@@ -101,9 +155,16 @@ function App() {
     });
   }, [data, filters]);
 
-  // Calculate price statistics for filtered items
+  // Items for statistics (excluding manually excluded and outliers)
+  const itemsForStats = useMemo(() => {
+    return filteredItems.filter(item =>
+      !excludedItems.has(item.link) && !detectedOutliers.has(item.link)
+    );
+  }, [filteredItems, excludedItems, detectedOutliers]);
+
+  // Calculate price statistics for non-excluded items
   const priceStats = useMemo(() => {
-    const prices = filteredItems
+    const prices = itemsForStats
       .map(item => item.price)
       .filter((p): p is number => p !== null && p > 0);
 
@@ -116,15 +177,15 @@ function App() {
       maxPrice: Math.max(...prices),
       avgPrice: Math.round(prices.reduce((a, b) => a + b, 0) / prices.length),
     };
-  }, [filteredItems]);
+  }, [itemsForStats]);
 
-  // Export to CSV
+  // Export to CSV (only non-excluded items)
   const handleExportCSV = useCallback(() => {
-    if (filteredItems.length === 0) return;
+    if (itemsForStats.length === 0) return;
 
     // Collect all attribute keys
     const allKeys = new Set<string>();
-    filteredItems.forEach(item => {
+    itemsForStats.forEach(item => {
       Object.keys(item.attributes).forEach(key => allKeys.add(key));
     });
     const attributeKeys = Array.from(allKeys).sort();
@@ -133,7 +194,7 @@ function App() {
     const headers = ['Link', 'Image', 'Price', ...attributeKeys, 'Description'];
 
     // Build CSV rows
-    const rows = filteredItems.map(item => {
+    const rows = itemsForStats.map(item => {
       const row = [
         item.link,
         item.image,
@@ -169,7 +230,7 @@ function App() {
     link.download = `opensooq-export-${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
     URL.revokeObjectURL(link.href);
-  }, [filteredItems]);
+  }, [itemsForStats]);
 
   return (
     <div className="container">
@@ -203,13 +264,26 @@ function App() {
 
       {data && !loading && (
         <>
-          <PriceSummary
-            minPrice={priceStats.minPrice}
-            maxPrice={priceStats.maxPrice}
-            avgPrice={priceStats.avgPrice}
-            totalItems={data.totalItems}
-            filteredCount={filteredItems.length}
-          />
+          <div className="sticky-summary">
+            <PriceSummary
+              minPrice={priceStats.minPrice}
+              maxPrice={priceStats.maxPrice}
+              avgPrice={priceStats.avgPrice}
+              totalItems={data.totalItems}
+              filteredCount={itemsForStats.length}
+              excludedCount={excludedItems.size + detectedOutliers.size}
+            />
+            <div className="outlier-toggle">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={autoExcludeOutliers}
+                  onChange={(e) => setAutoExcludeOutliers(e.target.checked)}
+                />
+                Auto-exclude price outliers ({detectedOutliers.size} detected)
+              </label>
+            </div>
+          </div>
 
           <Filters
             items={data.items}
@@ -218,7 +292,13 @@ function App() {
             onClearFilters={handleClearFilters}
           />
 
-          <DataTable items={filteredItems} onExportCSV={handleExportCSV} />
+          <DataTable
+            items={filteredItems}
+            onExportCSV={handleExportCSV}
+            excludedItems={excludedItems}
+            outlierItems={detectedOutliers}
+            onToggleExclude={handleToggleExclude}
+          />
         </>
       )}
     </div>
