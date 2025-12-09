@@ -115,10 +115,11 @@ h1 {
 .outlier-toggle {
   display: flex;
   justify-content: center;
-  padding: 10px;
+  padding: 10px 15px;
   background: white;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  margin-bottom: 15px;
 }
 
 .outlier-toggle label {
@@ -175,6 +176,68 @@ h1 {
   text-transform: uppercase;
   border-bottom: 1px solid #eee;
   padding-bottom: 5px;
+}
+
+.filter-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 5px;
+}
+
+.filter-label-row label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2c3e50;
+  text-transform: uppercase;
+}
+
+.chart-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.chart-icon-btn:hover {
+  background: #e8f4fc;
+}
+
+.range-filter {
+  display: flex;
+  gap: 10px;
+  flex-direction: column;
+}
+
+.range-input-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.range-input-group label {
+  font-size: 11px;
+  color: #7f8c8d;
+  text-transform: none;
+}
+
+.range-input-group select {
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+  cursor: pointer;
+}
+
+.range-input-group select:focus {
+  outline: none;
+  border-color: #3498db;
 }
 
 .multi-select {
@@ -299,6 +362,26 @@ h1 {
   position: sticky;
   top: 0;
   white-space: nowrap;
+}
+
+.data-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s;
+}
+
+.data-table th.sortable:hover {
+  background: #e9ecef;
+}
+
+.sort-indicator {
+  margin-left: 5px;
+  font-size: 12px;
+  color: #95a5a6;
+}
+
+.data-table th.sortable:hover .sort-indicator {
+  color: #3498db;
 }
 
 .data-table tr:hover {
@@ -450,3 +533,114 @@ h1 {
   font-size: 12px;
   color: #666;
 }
+
+/* Chart Modal */
+.chart-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.chart-container {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  max-width: 800px;
+  width: 100%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.chart-header h3 {
+  margin: 0;
+  color: #2c3e50;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #7f8c8d;
+  padding: 0 5px;
+  line-height: 1;
+}
+
+.close-btn:hover {
+  color: #e74c3c;
+}
+
+.chart-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.chart-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 15px;
+}
+
+.chart-label {
+  width: 150px;
+  font-size: 13px;
+  color: #555;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chart-count {
+  color: #95a5a6;
+  font-size: 11px;
+  margin-left: 5px;
+}
+
+.chart-bar-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chart-bar {
+  height: 24px;
+  background: linear-gradient(90deg, #3498db, #2980b9);
+  border-radius: 4px;
+  min-width: 4px;
+  transition: width 0.3s ease;
+}
+
+.chart-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2c3e50;
+  white-space: nowrap;
+}
+
+.no-chart-data {
+  text-align: center;
+  color: #7f8c8d;
+  padding: 40px;
+}
+

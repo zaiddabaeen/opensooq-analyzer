@@ -1,5 +1,8 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { ScrapedItem } from '../types';
+
+type SortDirection = 'asc' | 'desc' | null;
+type SortConfig = { key: string; direction: SortDirection };
 
 interface DataTableProps {
   items: ScrapedItem[];
@@ -16,24 +19,83 @@ export const DataTable: React.FC<DataTableProps> = ({
   outlierItems,
   onToggleExclude,
 }) => {
-  if (items.length === 0) {
-    return <div className="no-data">No items to display</div>;
-  }
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: '', direction: null });
 
   // Collect all unique attribute keys across all items
-  const allKeys = new Set<string>();
-  items.forEach(item => {
-    Object.keys(item.attributes).forEach(key => allKeys.add(key));
-  });
+  const allKeys = useMemo(() => {
+    const keys = new Set<string>();
+    items.forEach(item => {
+      Object.keys(item.attributes).forEach(key => keys.add(key));
+    });
+    return keys;
+  }, [items]);
 
-  const sortedKeys = Array.from(allKeys).sort();
+  const sortedKeys = useMemo(() => Array.from(allKeys).sort(), [allKeys]);
 
   // Move some important columns to the front
   const priorityKeys = ['Condition', 'Car Make', 'Model', 'Year', 'Kilometers', 'City'];
-  const orderedKeys = [
+  const orderedKeys = useMemo(() => [
     ...priorityKeys.filter(k => allKeys.has(k)),
     ...sortedKeys.filter(k => !priorityKeys.includes(k)),
-  ];
+  ], [allKeys, sortedKeys]);
+
+  // Sort items
+  const sortedItems = useMemo(() => {
+    if (!sortConfig.key || !sortConfig.direction) return items;
+
+    return [...items].sort((a, b) => {
+      let aVal: string | number | null = null;
+      let bVal: string | number | null = null;
+
+      if (sortConfig.key === '_price') {
+        aVal = a.price;
+        bVal = b.price;
+      } else {
+        const aAttr = a.attributes[sortConfig.key];
+        const bAttr = b.attributes[sortConfig.key];
+        aVal = Array.isArray(aAttr) ? aAttr.join(', ') : aAttr || '';
+        bVal = Array.isArray(bAttr) ? bAttr.join(', ') : bAttr || '';
+      }
+
+      // Handle nulls
+      if (aVal === null && bVal === null) return 0;
+      if (aVal === null) return 1;
+      if (bVal === null) return -1;
+
+      // Compare
+      let comparison = 0;
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        comparison = aVal - bVal;
+      } else {
+        comparison = String(aVal).localeCompare(String(bVal));
+      }
+
+      return sortConfig.direction === 'asc' ? comparison : -comparison;
+    });
+  }, [items, sortConfig]);
+
+  const handleSort = (key: string) => {
+    setSortConfig(prev => {
+      if (prev.key !== key) {
+        return { key, direction: 'asc' };
+      }
+      if (prev.direction === 'asc') {
+        return { key, direction: 'desc' };
+      }
+      return { key: '', direction: null };
+    });
+  };
+
+  const getSortIndicator = (key: string) => {
+    if (sortConfig.key !== key) return '↕';
+    if (sortConfig.direction === 'asc') return '↑';
+    if (sortConfig.direction === 'desc') return '↓';
+    return '↕';
+  };
+
+  if (items.length === 0) {
+    return <div className="no-data">No items to display</div>;
+  }
 
   const formatValue = (value: string | string[] | undefined) => {
     if (!value) return '-';
@@ -75,15 +137,19 @@ export const DataTable: React.FC<DataTableProps> = ({
               <th>Include</th>
               <th>Image</th>
               <th>Link</th>
-              <th>Price</th>
+              <th className="sortable" onClick={() => handleSort('_price')}>
+                Price <span className="sort-indicator">{getSortIndicator('_price')}</span>
+              </th>
               {orderedKeys.map(key => (
-                <th key={key}>{key}</th>
+                <th key={key} className="sortable" onClick={() => handleSort(key)}>
+                  {key} <span className="sort-indicator">{getSortIndicator(key)}</span>
+                </th>
               ))}
               <th>Description</th>
             </tr>
           </thead>
           <tbody>
-            {items.map((item, index) => {
+            {sortedItems.map((item, index) => {
               const isExcluded = excludedItems.has(item.link);
               const isOutlier = outlierItems.has(item.link);
 
@@ -95,7 +161,7 @@ export const DataTable: React.FC<DataTableProps> = ({
                       onClick={() => onToggleExclude(item.link)}
                       title={isExcluded ? 'Click to include' : isOutlier ? 'Auto-excluded outlier (click to include)' : 'Click to exclude'}
                     >
-                      {isExcluded ? '➕' : isOutlier ? '📊' : '✓'}
+                      {isExcluded ? '➕' : isOutlier ? '➕' : '✓'}
                     </button>
                   </td>
                   <td className="image-cell">

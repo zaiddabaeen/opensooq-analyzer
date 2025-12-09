@@ -3,6 +3,7 @@ import { ScrapeResult, ScrapedItem } from './types';
 import { PriceSummary } from './components/PriceSummary';
 import { Filters } from './components/Filters';
 import { DataTable } from './components/DataTable';
+import { PriceChart } from './components/PriceChart';
 
 // Detect outliers using IQR method
 function detectOutliers(items: ScrapedItem[]): Set<string> {
@@ -45,6 +46,7 @@ function App() {
   const [filters, setFilters] = useState<Record<string, string[]>>({});
   const [excludedItems, setExcludedItems] = useState<Set<string>>(new Set());
   const [autoExcludeOutliers, setAutoExcludeOutliers] = useState(true);
+  const [chartFilterKey, setChartFilterKey] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,6 +112,13 @@ function App() {
     return detectOutliers(data.items);
   }, [data, autoExcludeOutliers]);
 
+  // Helper to parse kilometer values like "+200,000" or "100,000 - 149,999"
+  const parseKilometers = (value: string): number => {
+    const cleaned = value.replace(/[+,]/g, '').trim();
+    const match = cleaned.match(/(\d+)/);
+    return match ? parseInt(match[1], 10) : 0;
+  };
+
   // Apply filters to items
   const filteredItems = useMemo(() => {
     if (!data) return [];
@@ -131,9 +140,29 @@ function App() {
         if (!matchesAnyRange) return false;
       }
 
+      // Check year range filter
+      const yearFrom = filters['_yearFrom']?.[0];
+      const yearTo = filters['_yearTo']?.[0];
+      if (yearFrom || yearTo) {
+        const itemYear = parseInt(item.attributes['Year'] as string, 10);
+        if (isNaN(itemYear)) return false;
+        if (yearFrom && itemYear < parseInt(yearFrom, 10)) return false;
+        if (yearTo && itemYear > parseInt(yearTo, 10)) return false;
+      }
+
+      // Check kilometers range filter
+      const kmFrom = filters['_kmFrom']?.[0];
+      const kmTo = filters['_kmTo']?.[0];
+      if (kmFrom || kmTo) {
+        const itemKm = parseKilometers(item.attributes['Kilometers'] as string || '');
+        const kmFromVal = kmFrom ? parseKilometers(kmFrom) : 0;
+        const kmToVal = kmTo ? parseKilometers(kmTo) : Infinity;
+        if (itemKm < kmFromVal || itemKm > kmToVal) return false;
+      }
+
       // Check attribute filters (OR logic within same attribute, AND across attributes)
       for (const [key, filterValues] of Object.entries(filters)) {
-        if (key === '_priceRange') continue;
+        if (key === '_priceRange' || key === '_yearFrom' || key === '_yearTo' || key === '_kmFrom' || key === '_kmTo') continue;
         if (filterValues.length === 0) continue;
 
         const itemValue = item.attributes[key];
@@ -264,6 +293,17 @@ function App() {
 
       {data && !loading && (
         <>
+          <div className="outlier-toggle">
+            <label>
+              <input
+                type="checkbox"
+                checked={autoExcludeOutliers}
+                onChange={(e) => setAutoExcludeOutliers(e.target.checked)}
+              />
+              Auto-exclude price outliers ({detectedOutliers.size} detected)
+            </label>
+          </div>
+
           <div className="sticky-summary">
             <PriceSummary
               minPrice={priceStats.minPrice}
@@ -273,16 +313,6 @@ function App() {
               filteredCount={itemsForStats.length}
               excludedCount={excludedItems.size + detectedOutliers.size}
             />
-            <div className="outlier-toggle">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={autoExcludeOutliers}
-                  onChange={(e) => setAutoExcludeOutliers(e.target.checked)}
-                />
-                Auto-exclude price outliers ({detectedOutliers.size} detected)
-              </label>
-            </div>
           </div>
 
           <Filters
@@ -290,7 +320,18 @@ function App() {
             filters={filters}
             onFilterChange={handleFilterChange}
             onClearFilters={handleClearFilters}
+            onShowChart={setChartFilterKey}
           />
+
+          {chartFilterKey && (
+            <PriceChart
+              items={filteredItems}
+              filterKey={chartFilterKey}
+              excludedItems={excludedItems}
+              outlierItems={detectedOutliers}
+              onClose={() => setChartFilterKey(null)}
+            />
+          )}
 
           <DataTable
             items={filteredItems}
