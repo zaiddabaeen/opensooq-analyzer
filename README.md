@@ -22,10 +22,39 @@ npm run install:all
 
 # Run in development mode (starts both backend and frontend)
 npm run dev
+
+# For production
+npm run build
+npm run start
 ```
 
-The frontend will run on http://localhost:3000
-The backend API will run on http://localhost:3001
+The application runs on http://localhost:3001
+- Frontend is served at `/`
+- API is available at `/api`
+
+## Environment Variables
+
+You can configure the application using the following environment variables:
+
+### Backend
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `HOST` | `localhost` | Host address for the server |
+| `PORT` | `3001` | Port for the server |
+| `NODE_ENV` | `development` | Set to `production` for production mode |
+| `VITE_DEV_SERVER` | `http://localhost:5173` | Vite dev server URL (development only) |
+
+### Frontend (Development)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VITE_HOST` | `localhost` | Host address for Vite dev server |
+| `VITE_PORT` | `5173` | Port for Vite dev server |
+
+Example:
+```bash
+# Run on custom host/port
+HOST=0.0.0.0 PORT=8080 npm run dev
+```
 
 ## Usage
 
