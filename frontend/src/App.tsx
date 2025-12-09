@@ -263,85 +263,93 @@ function App() {
 
   return (
     <div className="container">
-      <h1>🚗 OpenSooq Listings Analyzer</h1>
+      <div className="sidebar">
+        <h1>🚗 OpenSooq Listings Analyzer</h1>
 
-      <form className="search-form" onSubmit={handleSubmit}>
-        <input
-          type="url"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="Enter OpenSooq search URL (e.g., https://jo.opensooq.com/en/cars/cars-for-sale/honda/civic)"
-          required
-        />
-        <button type="submit" disabled={loading}>
-          {loading ? 'Scraping...' : 'Scrape'}
-        </button>
-      </form>
-
-      {loading && (
-        <div className="loading">
-          <div className="loading-spinner"></div>
-          <p>Fetching and parsing listings... This may take a moment.</p>
-        </div>
-      )}
-
-      {error && (
-        <div className="error">
-          <strong>Error:</strong> {error}
-        </div>
-      )}
-
-      {data && !loading && (
-        <>
-          <div className="outlier-toggle">
-            <label>
-              <input
-                type="checkbox"
-                checked={autoExcludeOutliers}
-                onChange={(e) => setAutoExcludeOutliers(e.target.checked)}
-              />
-              Auto-exclude price outliers ({detectedOutliers.size} detected)
-            </label>
-          </div>
-
-          <div className="sticky-summary">
-            <PriceSummary
-              minPrice={priceStats.minPrice}
-              maxPrice={priceStats.maxPrice}
-              avgPrice={priceStats.avgPrice}
-              totalItems={data.totalItems}
-              filteredCount={itemsForStats.length}
-              excludedCount={excludedItems.size + detectedOutliers.size}
-            />
-          </div>
-
-          <Filters
-            items={data.items}
-            filters={filters}
-            onFilterChange={handleFilterChange}
-            onClearFilters={handleClearFilters}
-            onShowChart={setChartFilterKey}
+        <form className="search-form" onSubmit={handleSubmit}>
+          <input
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="Enter OpenSooq search URL (e.g., https://jo.opensooq.com/en/cars/cars-for-sale/honda/civic)"
+            required
           />
+          <button type="submit" disabled={loading}>
+            {loading ? 'Analyzing...' : 'Analyze'}
+          </button>
+        </form>
 
-          {chartFilterKey && (
-            <PriceChart
+        {loading && (
+          <div className="loading">
+            <div className="loading-spinner"></div>
+            <p>Fetching and parsing listings... This may take a moment.</p>
+          </div>
+        )}
+
+        {error && (
+          <div className="error">
+            <strong>Error:</strong> {error}
+          </div>
+        )}
+
+        {data && !loading && (
+          <>
+            <div className="outlier-toggle">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={autoExcludeOutliers}
+                  onChange={(e) => setAutoExcludeOutliers(e.target.checked)}
+                />
+                Auto-exclude price outliers ({detectedOutliers.size} detected)
+              </label>
+            </div>
+
+            <Filters
+              items={data.items}
+              filters={filters}
+              onFilterChange={handleFilterChange}
+              onClearFilters={handleClearFilters}
+              onShowChart={setChartFilterKey}
+            />
+          </>
+        )}
+      </div>
+
+      <div className="main-content">
+        {data && !loading && (
+          <>
+            <div className="sticky-summary">
+              <PriceSummary
+                minPrice={priceStats.minPrice}
+                maxPrice={priceStats.maxPrice}
+                avgPrice={priceStats.avgPrice}
+                totalItems={data.totalItems}
+                filteredCount={itemsForStats.length}
+                excludedCount={excludedItems.size + detectedOutliers.size}
+              />
+            </div>
+
+            {chartFilterKey && (
+              <PriceChart
+                items={filteredItems}
+                filterKey={chartFilterKey}
+                excludedItems={excludedItems}
+                outlierItems={detectedOutliers}
+                onClose={() => setChartFilterKey(null)}
+              />
+            )}
+
+            <DataTable
               items={filteredItems}
-              filterKey={chartFilterKey}
+              onExportCSV={handleExportCSV}
               excludedItems={excludedItems}
               outlierItems={detectedOutliers}
-              onClose={() => setChartFilterKey(null)}
+              onToggleExclude={handleToggleExclude}
             />
-          )}
-
-          <DataTable
-            items={filteredItems}
-            onExportCSV={handleExportCSV}
-            excludedItems={excludedItems}
-            outlierItems={detectedOutliers}
-            onToggleExclude={handleToggleExclude}
-          />
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
