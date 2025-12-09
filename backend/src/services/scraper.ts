@@ -114,7 +114,13 @@ interface ListingItem {
   image: string;
 }
 
-function extractListingsFromPage($: cheerio.CheerioAPI, baseUrl: string): ListingItem[] {
+interface PageExtractionResult {
+  listings: ListingItem[];
+  hasRecommendedListings: boolean;
+  nextPageUrl: string | null;
+}
+
+function extractListingsFromPage($: cheerio.CheerioAPI, baseUrl: string): PageExtractionResult {
   const listings: ListingItem[] = [];
 
   // Get the main content element
@@ -123,17 +129,21 @@ function extractListingsFromPage($: cheerio.CheerioAPI, baseUrl: string): Listin
     mainContent = $('[id*="serp"]').first();
   }
 
-  // Get the HTML content and remove everything after "Recommended Listings"
-  let mainHtml = mainContent.html() || '';
-  const recommendedIndex = mainHtml.indexOf('Recommended Listings');
-  if (recommendedIndex !== -1) {
-    mainHtml = mainHtml.substring(0, recommendedIndex);
+  // Check if page contains "Recommended Listings"
+  const mainHtml = mainContent.html() || '';
+  const hasRecommendedListings = mainHtml.includes('Recommended Listings');
+
+  // Get content before "Recommended Listings" if present
+  let filteredHtml = mainHtml;
+  if (hasRecommendedListings) {
+    const recommendedIndex = mainHtml.indexOf('Recommended Listings');
+    filteredHtml = mainHtml.substring(0, recommendedIndex);
   }
 
-  const $filtered = cheerio.load(mainHtml);
+  const $filtered = cheerio.load(filteredHtml);
   const itemElements = $filtered('.postListItemData');
 
-  itemElements.each((i, element) => {
+  itemElements.each((_, element) => {
     const $item = $filtered(element);
 
     // Get the link
@@ -155,7 +165,6 @@ function extractListingsFromPage($: cheerio.CheerioAPI, baseUrl: string): Listin
                   $item.text().trim().substring(0, 100);
 
     // Get image - find the closest parent that contains the image gallery
-    // Look for the post container and find the image there
     const $postContainer = $item.closest('[class*="post"]').length > 0
       ? $item.closest('[class*="post"]')
       : $item.parent().parent();
@@ -172,7 +181,21 @@ function extractListingsFromPage($: cheerio.CheerioAPI, baseUrl: string): Listin
     }
   });
 
-  return listings;
+  // Get next page URL from pagination
+  let nextPageUrl: string | null = null;
+  const pagination = $('#pagination');
+  if (pagination.length > 0) {
+    // Find the next page arrow link (data-id="nextPageArrow")
+    const nextPageLink = pagination.find('[data-id="nextPageArrow"]');
+    if (nextPageLink.length > 0 && !nextPageLink.hasClass('disabled')) {
+      const href = nextPageLink.attr('href');
+      if (href) {
+        nextPageUrl = href.startsWith('http') ? href : baseUrl + href;
+      }
+    }
+  }
+
+  return { listings, hasRecommendedListings, nextPageUrl };
 }
 
 // Process items in batches with concurrency
@@ -206,19 +229,54 @@ async function processInBatches<T, R>(
 export async function scrapeOpenSooq(url: string): Promise<ScrapeResult> {
   console.log(`Scraping search results from: ${url}`);
 
-  const html = await fetchPageWithRetry(url);
-  const $ = cheerio.load(html);
   const baseUrl = getBaseUrl(url);
+  const allListings: ListingItem[] = [];
+  let currentPageUrl: string | null = url;
+  let pageNumber = 1;
+  const seenLinks = new Set<string>();
 
-  // Extract listings from the page
-  const listings = extractListingsFromPage($, baseUrl);
-  console.log(`Found ${listings.length} items`);
+  // Fetch all pages until we hit "Recommended Listings" or run out of pages
+  while (currentPageUrl) {
+    console.log(`Fetching page ${pageNumber}: ${currentPageUrl}`);
+
+    const html = await fetchPageWithRetry(currentPageUrl);
+    const $ = cheerio.load(html);
+
+    const { listings, hasRecommendedListings, nextPageUrl } = extractListingsFromPage($, baseUrl);
+
+    // Add unique listings
+    for (const listing of listings) {
+      if (!seenLinks.has(listing.link)) {
+        seenLinks.add(listing.link);
+        allListings.push(listing);
+      }
+    }
+
+    console.log(`Page ${pageNumber}: Found ${listings.length} items (total: ${allListings.length})`);
+
+    // Stop if we hit "Recommended Listings"
+    if (hasRecommendedListings) {
+      console.log('Hit "Recommended Listings" - stopping pagination');
+      break;
+    }
+
+    // Move to next page
+    currentPageUrl = nextPageUrl;
+    pageNumber++;
+
+    // Add delay between page fetches
+    if (currentPageUrl) {
+      await delay(500);
+    }
+  }
+
+  console.log(`Total listings found across ${pageNumber} page(s): ${allListings.length}`);
 
   // Process detail pages in parallel batches
   const items = await processInBatches(
-    listings,
+    allListings,
     async (listing, index) => {
-      console.log(`Scraping item ${index + 1}/${listings.length}: ${listing.link}`);
+      console.log(`Scraping item ${index + 1}/${allListings.length}: ${listing.link}`);
       const details = await scrapeItemDetails(listing.link);
 
       return {
